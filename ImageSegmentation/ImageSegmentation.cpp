@@ -1,3 +1,11 @@
+/**
+ * Image segmentation using MRF-2.2.
+ * Use the potential functions written in "MRFs and CRFs for Vision: Models & Optimization" by Carsten Rother.
+ *
+ * @author	Gen Nishida
+ * @date	9/3/2016
+ */
+
 #include "ImageSegmentation.h"
 #include "BP-S.h"
 #include <map>
@@ -58,8 +66,14 @@ namespace imgseg {
 		int r = pix / img.cols;
 		int c = pix % img.cols;
 		cv::Vec3b col = discr(img.at<cv::Vec3b>(r, c));
-		if (data_prior.at<uchar>(col[0], col[1], col[2]) == i) return 0;
-		else return (MRF::CostVal)3;
+
+		double p = data_prior.at<double>(col[0], col[1], col[2]);
+		if (i == 0) {
+			return p * 100;
+		}
+		else {
+			return (1 - p) * 100;
+		}
 	}
 
 	/**
@@ -84,12 +98,10 @@ namespace imgseg {
 			return 0;
 		}
 		else {
-			if (data_prior.at<uchar>(col1[0], col1[1], col1[2]) == data_prior.at<uchar>(col2[0], col2[1], col2[2])) {
-				return 3;
-			}
-			else {
-				return 1;
-			}
+			double beta = 1;
+			double p1 = data_prior.at<double>(col1[0], col1[1], col1[2]);
+			double p2 = data_prior.at<double>(col2[0], col2[1], col2[2]);
+			return exp(-beta * abs(p1 - p2)) * 100;
 		}
 	}
 
@@ -114,7 +126,8 @@ namespace imgseg {
 		}
 
 		// create histogram based on the image and mask
-		std::map<int, int> hist;
+		std::map<int, float> hist;
+		std::map<int, float> hist_cnt;
 		for (int r = 0; r < mask.rows; ++r) {
 			for (int c = 0; c < mask.cols; ++c) {
 				cv::Vec3b m = mask.at<cv::Vec3b>(r, c);
@@ -123,23 +136,44 @@ namespace imgseg {
 				if (m[0] == 255 && m[1] == 255 && m[2] == 255) { // others
 				}
 				else if (m[1] < 200 && m[2] < 200) { // blue (foreground)
+					if (hist.find(col) == hist.end()) {
+						hist[col] = 0;
+					}
+					if (hist_cnt.find(col) == hist_cnt.end()) {
+						hist_cnt[col] = 0;
+					}
 					hist[col]++;
+					hist_cnt[col]++;
 				}
 				else if (m[0] < 200 && m[1] < 200) { // red (background)
-					hist[col]--;
+					if (hist.find(col) == hist.end()) {
+						hist[col] = 0;
+					}
+					if (hist_cnt.find(col) == hist_cnt.end()) {
+						hist_cnt[col] = 0;
+					}
+					hist_cnt[col]++;
 				}
 			}
+		}
+
+		// normalize the histogram to [0, 1] for each point
+		for (auto it = hist.begin(); it != hist.end(); ++it) {
+			//std::cout << hist[it->first] << "," << hist_cnt[it->first] << std::endl;
+			hist[it->first] = hist[it->first] / hist_cnt[it->first];
+			//std::cout << hist[it->first] << std::endl;
 		}
 
 		// computing the prior data
 		double sigma2 = num_res * num_res / 10 / 10;
 		std::vector<int> sizes(3);
 		for (int i = 0; i < 3; ++i) sizes[i] = num_res;
-		data_prior = cv::Mat(3, sizes.data(), CV_8U, cv::Scalar(0));
+		data_prior = cv::Mat(3, sizes.data(), CV_64F, cv::Scalar(0));
 		for (int i = 0; i < num_res; ++i) {
 			for (int j = 0; j < num_res; ++j) {
 				for (int k = 0; k < num_res; ++k) {
 					double total = 0;
+					double total_weight = 0;
 
 					// weighted sum of labels
 					for (auto it = hist.begin(); it != hist.end(); ++it) {
@@ -147,14 +181,10 @@ namespace imgseg {
 						double dist2 = pow(p[0] - i, 2) + pow(p[1] - j, 2) + pow(p[2] - k, 2);
 						double weight = exp(-dist2 / sigma2);
 						total += it->second * weight;
+						total_weight += weight;
 					}
 
-					if (total >= 0) {
-						data_prior.at<uchar>(i, j, k) = 1;
-					}
-					else {
-						data_prior.at<uchar>(i, j, k) = 0;
-					}
+					data_prior.at<double>(i, j, k) = total / total_weight;
 				}
 			}
 		}
