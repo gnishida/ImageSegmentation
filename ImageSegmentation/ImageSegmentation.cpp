@@ -80,24 +80,15 @@ namespace imgseg {
 		int c2 = pix2 % img.cols;
 		cv::Vec3b col2 = discr(img.at<cv::Vec3b>(r2, c2));
 
-		/*
-		if (data_prior.at<uchar>(col1[0], col1[1], col1[2]) == data_prior.at<uchar>(col2[0], col2[1], col2[2])) {
-			return 0;
-		}
-		else {
-			if (i == j) return (MRF::CostVal)0;
-			else return (MRF::CostVal)300;
-		}
-		*/
 		if (i == j) {
 			return 0;
 		}
 		else {
 			if (data_prior.at<uchar>(col1[0], col1[1], col1[2]) == data_prior.at<uchar>(col2[0], col2[1], col2[2])) {
-				return 3;// 30;
+				return 3;
 			}
 			else {
-				return 1;// 10;
+				return 1;
 			}
 		}
 	}
