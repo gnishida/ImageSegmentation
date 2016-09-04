@@ -69,10 +69,10 @@ namespace imgseg {
 
 		double p = data_prior.at<double>(col[0], col[1], col[2]);
 		if (i == 0) {
-			return p * 100;
+			return p;
 		}
 		else {
-			return (1 - p) * 100;
+			return (1 - p);
 		}
 	}
 
@@ -101,7 +101,7 @@ namespace imgseg {
 			double beta = 1;
 			double p1 = data_prior.at<double>(col1[0], col1[1], col1[2]);
 			double p2 = data_prior.at<double>(col2[0], col2[1], col2[2]);
-			return exp(-beta * abs(p1 - p2)) * 100;
+			return exp(-beta * abs(p1 - p2));
 		}
 	}
 
